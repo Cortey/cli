@@ -1,5 +1,9 @@
 package registry
 
+import "github.com/google/go-containerregistry/pkg/authn"
+
+// TODO: RACZEJ NIE DO OBTESTOWANIA
+
 // write tests for the Import function
 // the tests should cover the happy path and the error path
 // the tests should not actually push an image to a registry
@@ -11,7 +15,6 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/google/go-containerregistry/pkg/authn"
 	"github.com/stretchr/testify/require"
 )
 
