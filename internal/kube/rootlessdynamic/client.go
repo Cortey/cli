@@ -3,6 +3,7 @@ package rootlessdynamic
 import (
 	"context"
 	"fmt"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"strings"
 
 	"github.com/kyma-project/cli.v3/internal/clierror"
@@ -18,6 +19,8 @@ type applyFunc func(context.Context, dynamic.ResourceInterface, *unstructured.Un
 type Interface interface {
 	Apply(context.Context, *unstructured.Unstructured) clierror.Error
 	ApplyMany(context.Context, []unstructured.Unstructured) clierror.Error
+	Remove(context.Context, *unstructured.Unstructured) clierror.Error
+	RemoveMany(context.Context, []unstructured.Unstructured) clierror.Error
 }
 
 type client struct {
@@ -87,6 +90,43 @@ func applyResource(ctx context.Context, resourceInterface dynamic.ResourceInterf
 	})
 
 	return err
+}
+
+func (c *client) Remove(ctx context.Context, resource *unstructured.Unstructured) clierror.Error {
+	group, version := groupVersion(resource.GetAPIVersion())
+	apiResource, err := c.discoverAPIResource(group, version, resource.GetKind())
+	if err != nil {
+		return clierror.Wrap(err, clierror.New("failed to discover API resource using discovery client"))
+	}
+
+	gvr := &schema.GroupVersionResource{
+		Group:    group,
+		Version:  version,
+		Resource: apiResource.Name,
+	}
+
+	if apiResource.Namespaced {
+		err = c.dynamic.Resource(*gvr).Namespace("kyma-system").Delete(ctx, resource.GetName(), metav1.DeleteOptions{})
+		if err != nil && !errors.IsNotFound(err) {
+			return clierror.Wrap(err, clierror.New("failed to delete namespaced resource"))
+		}
+	} else {
+		err = c.dynamic.Resource(*gvr).Delete(ctx, resource.GetName(), metav1.DeleteOptions{})
+		if err != nil && !errors.IsNotFound(err) {
+			return clierror.Wrap(err, clierror.New("failed to delete cluster-scoped resource"))
+		}
+	}
+	return nil
+}
+
+func (c *client) RemoveMany(ctx context.Context, objs []unstructured.Unstructured) clierror.Error {
+	for _, resource := range objs {
+		err := c.Remove(ctx, &resource)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (c *client) discoverAPIResource(group, version, kind string) (*metav1.APIResource, error) {

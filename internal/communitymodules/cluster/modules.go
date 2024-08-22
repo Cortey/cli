@@ -53,6 +53,15 @@ func ApplySpecifiedModules(ctx context.Context, client rootlessdynamic.Interface
 	return applySpecifiedModules(ctx, client, modules, crs, available)
 }
 
+func RemoveSpecifiedModules(ctx context.Context, client rootlessdynamic.Interface, modules []ModuleInfo) clierror.Error {
+	available, err := communitymodules.GetAvailableModules()
+	if err != nil {
+		return err
+	}
+
+	return removeSpecifiedModules(ctx, client, modules, available)
+}
+
 func applySpecifiedModules(ctx context.Context, client rootlessdynamic.Interface, modules []ModuleInfo, crs []unstructured.Unstructured, availableModules communitymodules.Modules) clierror.Error {
 	for _, rec := range availableModules {
 		moduleInfo := containsModule(rec.Name, modules)
@@ -131,6 +140,44 @@ func applyGivenObjects(ctx context.Context, client rootlessdynamic.Interface, re
 	if err != nil {
 		return clierror.WrapE(err, clierror.New("failed to apply module resources"))
 
+	}
+	return nil
+}
+
+func removeSpecifiedModules(ctx context.Context, client rootlessdynamic.Interface, modules []ModuleInfo, available communitymodules.Modules) clierror.Error {
+	for _, rec := range available {
+		moduleInfo := containsModule(rec.Name, modules)
+		if moduleInfo == nil {
+			continue
+		}
+		wantedVersion := verifyVersion(*moduleInfo, rec)
+
+		fmt.Printf("Removing %s module manifest\n", rec.Name)
+		err := removeGivenObjects(ctx, client, wantedVersion.Resources...)
+		if err != nil {
+			return clierror.WrapE(err, clierror.New("while removing module manifest"))
+		}
+
+		fmt.Printf("Removing CR\n")
+		err = removeGivenObjects(ctx, client, wantedVersion.CR)
+		if err != nil {
+			return clierror.WrapE(err, clierror.New("while removing module CR"))
+		}
+	}
+	return nil
+}
+
+func removeGivenObjects(ctx context.Context, client rootlessdynamic.Interface, resources ...communitymodules.Resource) clierror.Error {
+	objects := []unstructured.Unstructured{}
+	for _, res := range resources {
+		objects = append(objects, unstructured.Unstructured{
+			Object: res,
+		})
+	}
+
+	err := client.RemoveMany(ctx, objects)
+	if err != nil {
+		return clierror.WrapE(err, clierror.New("failed to remove module resources"))
 	}
 	return nil
 }
