@@ -36,7 +36,7 @@ func NewConfigCMD(kymaConfig *cmdcommon.KymaConfig) *cobra.Command {
 	}
 
 	cfg.KubeClientConfig.AddFlag(cmd)
-	cmd.Flags().BoolVar(&cfg.externalurl, "externalurl", false, "External URL for the Kyma registry.")
+	cmd.Flags().BoolVar(&cfg.externalurl, "external-url", false, "External URL for the Kyma registry.")
 	cmd.Flags().StringVar(&cfg.output, "output", "", "Path where the output file should be saved to. NOTE: docker expects the file to be named `config.json`.")
 
 	return cmd
